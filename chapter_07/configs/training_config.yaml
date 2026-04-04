@@ -1,0 +1,121 @@
+# Training Configuration for Mini-R1 GRPO
+# Optimized for single GPU (12-16GB VRAM)
+
+# Model Configuration
+model:
+  name: "Qwen/Qwen2.5-3B-Instruct" 
+  torch_dtype: "bfloat16"
+  attn_implementation: "eager"  # Flash Attention 없음 - eager 사용
+  use_peft: False
+  load_in_4bit: false
+  load_in_8bit: false
+  model_suffix: "2.5_3b"
+
+# PEFT/LoRA Configuration
+peft:
+  r: 64  # rank 증가 (32→64, 4B에 맞춤)
+  lora_alpha: 128
+  lora_dropout: 0.05
+  target_modules: ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+  task_type: "CAUSAL_LM"
+
+# Training Arguments
+training:
+  output_dir: "checkpoints/qwen2.5-3B"
+  learning_rate: 5.0e-6
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.05
+  
+  # Steps and epochs
+  max_steps: 2000 
+  logging_steps: 5
+  save_steps: 1000
+  eval_steps: 50
+  
+  # Batch size configuration
+  per_device_train_batch_size: 2
+  per_device_eval_batch_size: 1
+  gradient_accumulation_steps: 4
+  
+  # Memory optimization
+  gradient_checkpointing: true
+  gradient_checkpointing_kwargs:
+    use_reentrant: false
+  bf16: true
+  fp16: false
+  
+  # Training stability
+  max_grad_norm: 0.5
+  optim: "adamw_torch"
+  weight_decay: 0.01
+  
+  # Logging
+  logging_dir: "logs/tensorboard_qwen2.5-3B"
+  report_to: ["tensorboard"]
+  
+  # Checkpointing
+  save_total_limit: 2
+  load_best_model_at_end: false
+
+# GRPO Specific Parameters
+grpo:
+  max_prompt_length: 256
+  max_completion_length: 1536
+  
+  # Generation parameters
+  num_generations: 8
+  temperature: 0.9
+  top_p: 0.95
+  
+  # ✅ 추가: EOS 토큰 생성 시 즉시 중단
+  # (answer 태그 닫힌 후 더 이상 생성 안 함)
+  use_cache: False
+  
+  # GRPO hyperparameters
+  beta: 0.01
+
+# Dataset Configuration
+dataset:
+  name: "Jiayi-Pan/Countdown-Tasks-3to4"
+  split: "train"
+  num_samples: 4000 
+  test_size: 0.1
+  shuffle_seed: 42
+  
+  # Caching
+  cache_dir: ".cache/datasets"
+
+# Reward Functions
+reward_weights:
+  format_reward: 1.0       # 포맷 점수 가중치 (기본값: 1.0)
+  equation_reward: 1.0     # 수식 정답 점수 가중치 (기본값: 1.0)
+  length_penalty: 1.0      # 길이 페널티 가중치 (기본값: 1.0) -> 2.0으로 하면 페널티가 2배
+
+
+# Generation Sampling Configuration
+sampling:
+  save_samples_every: 5
+  num_samples_to_save: 10
+  save_successful_only: false
+
+# RunPod Specific Settings
+runpod:
+  # Auto-save to persistent storage
+  persistent_dir: "/workspace/minir1"
+  
+  # Memory monitoring
+  clear_cache_every_n_steps: 10
+  
+  # Automatic checkpoint upload to HF Hub
+  push_to_hub: false
+  hub_model_id: null
+
+# Evaluation Configuration
+evaluation:
+  # Evaluation dataset size
+  eval_samples: 500
+  
+  # Metrics to compute
+  compute_format_accuracy: true
+  compute_equation_accuracy: true
+  compute_reasoning_length: true
