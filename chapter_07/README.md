@@ -1,5 +1,11 @@
-# 주의 !! 
-# 반드시 런팟에서 실행하세요. chapter_07 하위의 파일/폴더를 복사해 runpod pod>jupyterlab>workspace/ 에 붙여넣어 실행하세요. 
+## * 주의사항(MUST READ)  
+- chapter_07 코드는 GPU가 필요합니다. 반드시 런팟에서 실행하세요. 
+- chapter_07 하위의 파일/폴더를 복사해 runpod pod>jupyterlab>workspace/ 에 붙여넣어 실행하세요.  
+
+
+----
+
+
 
 # Mini-R1: DeepSeek R1 "Aha Moment" Reproduction
 
