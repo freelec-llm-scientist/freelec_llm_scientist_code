@@ -32,6 +32,7 @@ def check_gpu():
         gpu_count = torch.cuda.device_count()
         print(f"✅ CUDA available: {torch.version.cuda}")
         print(f"✅ GPU count: {gpu_count}")
+        has_sufficient_vram = False
         
         for i in range(gpu_count):
             props = torch.cuda.get_device_properties(i)
@@ -40,21 +41,20 @@ def check_gpu():
             print(f"   VRAM: {vram_gb:.2f} GB")
             print(f"   Compute Capability: {props.major}.{props.minor}")
             
-            # Check minimum VRAM
-            if vram_gb < 12:
-                print(f"   ⚠️  WARNING: Only {vram_gb:.2f}GB VRAM. Minimum 12GB recommended.")
-                print(f"   Consider using Qwen2.5-1.5B and reducing max_completion_length.")
-            elif vram_gb < 16:
-                print(f"   ⚠️  {vram_gb:.2f}GB VRAM detected. Use Qwen2.5-1.5B for safety.")
+            # Current default: 3B full fine-tuning with a reference model
+            if vram_gb < 75:
+                print(f"   ⚠️  {vram_gb:.2f}GB VRAM is insufficient for the default full fine-tuning config.")
+                print("   Use a single 80GB-class GPU, or create and validate a separate PEFT config.")
             else:
-                print(f"   ✅ {vram_gb:.2f}GB VRAM is sufficient for Qwen2.5-3B.")
+                print(f"   ✅ {vram_gb:.2f}GB VRAM is sufficient for the default config.")
+                has_sufficient_vram = True
         
-        return True
+        return has_sufficient_vram
         
     except ImportError:
         print("❌ PyTorch not installed!")
-        print("   Run: uv add torch torchvision torchaudio --index https://download.pytorch.org/whl/cu121")
-        print("   Then: uv sync")
+        print("   Run: uv sync --locked --no-install-project")
+        print("   Use a CUDA 12.8-compatible RunPod image if PyTorch still cannot load.")
         return False
     except Exception as e:
         print(f"❌ Error checking GPU: {e}")
@@ -71,7 +71,7 @@ def check_disk_space():
         
         print(f"Available disk space: {free_gb:.2f} GB")
         
-        required_gb = 20
+        required_gb = 100
         if free_gb < required_gb:
             print(f"⚠️  WARNING: Only {free_gb:.2f}GB free. Recommended: {required_gb}GB+")
             print("   Consider:")
@@ -169,36 +169,14 @@ def suggest_config():
         if torch.cuda.is_available():
             vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
             
-            print("\nRecommended settings for your GPU:\n")
-            
-            if vram_gb >= 24:
-                print("🎯 GPU: Excellent (24GB+)")
-                print("   Model: Qwen/Qwen2.5-3B-Instruct")
-                print("   max_completion_length: 512")
-                print("   num_generations: 2")
-                print("   gradient_accumulation_steps: 8")
-                
-            elif vram_gb >= 16:
-                print("🎯 GPU: Good (16-24GB)")
-                print("   Model: Qwen/Qwen2.5-1.5B-Instruct (recommended)")
-                print("   max_completion_length: 512")
-                print("   num_generations: 2")
-                print("   gradient_accumulation_steps: 8")
-                
-            elif vram_gb >= 12:
-                print("🎯 GPU: Adequate (12-16GB)")
-                print("   Model: Qwen/Qwen2.5-1.5B-Instruct (required)")
-                print("   max_completion_length: 384")
-                print("   num_generations: 1")
-                print("   gradient_accumulation_steps: 16")
-                
+            print("\nCurrent default configuration:\n")
+
+            if vram_gb >= 75:
+                print("🎯 80GB-class GPU detected")
+                print("   The default Qwen2.5-3B full fine-tuning config is supported.")
             else:
-                print("🎯 GPU: Limited (<12GB)")
-                print("   ⚠️  Training may fail with OOM errors")
-                print("   Model: Qwen/Qwen2.5-1.5B-Instruct")
-                print("   max_completion_length: 256")
-                print("   num_generations: 1")
-                print("   gradient_accumulation_steps: 32")
+                print("⚠️  The default full fine-tuning config requires a single 80GB-class GPU.")
+                print("   Lower-memory PEFT settings require separate tuning and validation.")
     
     except Exception:
         pass

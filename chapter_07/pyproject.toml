@@ -11,7 +11,7 @@ dependencies = [
     "transformers>=4.48.0",
     "datasets>=3.1.0",
     "accelerate>=1.3.0",
-    "trl>=0.14.0",
+    "trl==0.25.0",
     # Model optimization
     "peft>=0.14.0",
     # bitsandbytes: Linux/Windows 전용. macOS arm64에서는 설치 실패하므로 조건부 설치.
@@ -68,11 +68,10 @@ include = [
 # 1. 의존성 설치 (프로젝트 빌드 제외):
 #    uv sync --no-install-project
 #
-# 2. PyTorch 확인 (RunPod pytorch 템플릿 사용 시 이미 설치됨):
-#    uv run python -c "import torch; print(torch.__version__); print(torch.cuda.is_available())"
-#    → "2.x.x+cu12x"와 "True" 출력 시 3번 건너뛰기
-#    → "False" 또는 에러 시:
-#    uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+# 2. uv.lock에 고정된 PyTorch/CUDA 확인:
+#    uv run python -c "import torch; print(torch.__version__); print(torch.version.cuda); print(torch.cuda.is_available())"
+#    → PyTorch 2.9.0, CUDA 12.8, True 출력 확인
+#    → "False" 또는 에러 시 CUDA 12.8 호환 RunPod 이미지를 사용하고 uv sync를 다시 실행
 #
 # 3. Flash Attention (선택, 학습 속도 20% 향상):
 #    ⚠️ 설치 시간: 5-15분 (GPU에 따라 다름)
@@ -96,4 +95,3 @@ include = [
 #         Eager attention 사용 시 속도는 20% 느리지만 안정적입니다.
 #
 # 상세 가이드: RUNPOD_SETUP.md
-

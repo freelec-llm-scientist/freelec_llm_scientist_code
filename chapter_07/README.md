@@ -15,8 +15,8 @@
 
 ### 핵심 기술
 - **패키지 관리**: UV (빠른 Python 패키지 관리자)
-- **모델**: Qwen2.5-1.5B/3B-Instruct (메모리 효율화)
-- **학습 방법**: GRPO (Group Relative Policy Optimization)
+- **모델**: Qwen2.5-3B-Instruct
+- **학습 방법**: TRL GRPOTrainer (`loss_type="dapo"`, `scale_rewards="group"`)
 - **환경**: **단일 GPU** (Multi-GPU 지원 없음)
 
 
@@ -24,9 +24,9 @@
 
 ### 📦 필수 소프트웨어
 - Python 3.10+
-- CUDA 12.1+
+- CUDA 12.8 호환 NVIDIA 드라이버/이미지
 - UV 패키지 관리자
-- 50GB 이상 디스크 공간
+- 100GB 이상 디스크 공간
 
 ## 📁 프로젝트 구조
 
@@ -82,7 +82,7 @@ MiniR1/
 - `.cache/datasets/`: 전처리된 데이터셋 (~50MB)
 - `logs/generation_samples/`: 학습 중 생성된 텍스트 & 보상 로그
 - `logs/tensorboard_*`: TensorBoard 시각화 데이터
-- `checkpoints/`: 모델/LoRA 체크포인트 (각 ~3GB)
+- `checkpoints/`: full fine-tuning 체크포인트 (optimizer 상태 포함 시 각 수십 GB)
 
 ## 🧮 Reward 시스템 한눈에 보기
 
@@ -98,9 +98,9 @@ MiniR1/
 
 #### 1. Pod 생성 및 접속
 ```bash
-# RunPod에서 RTX 4090/A5000 선택
-# 템플릿: PyTorch 2.4 + CUDA 12.1
-# 볼륨: 최소 50GB
+# RunPod에서 A100 80GB 선택 (현재 full fine-tuning 설정 기준)
+# 템플릿: CUDA 12.8 호환 이미지 (uv.lock: PyTorch 2.9.0 + CUDA 12.8)
+# 볼륨: 최소 100GB
 # Web Terminal 또는 SSH로 접속
 ```
 
@@ -115,17 +115,17 @@ source $HOME/.local/bin/env
 # 의존성 설치 (프로젝트 빌드 제외)
 uv sync --no-install-project
 
-# PyTorch CUDA 확인 (RunPod pytorch 템플릿 사용 시 이미 설치됨)
-uv run python -c "import torch; print(torch.__version__); print(torch.cuda.is_available())"
+# uv.lock에 고정된 PyTorch/CUDA 확인
+uv run python -c "import torch; print(f'PyTorch: {torch.__version__}, CUDA runtime: {torch.version.cuda}, available: {torch.cuda.is_available()}')"
 
-# ❌ "False" 또는 CPU 버전이면 → CUDA 버전 설치
-# uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+# 예상: PyTorch 2.9.0, CUDA runtime 12.8, available True
+# False 또는 로드 에러 시 CUDA 12.8 호환 RunPod 이미지에서 uv sync를 다시 실행
 
 # Flash Attention 설치 (선택, 20% 속도 향상)
 uv pip install flash-attn --no-build-isolation
 ```
 
-> 💡 **Tip**: RunPod pytorch 템플릿을 사용했다면 PyTorch CUDA가 이미 설치되어 있을 가능성이 높습니다.
+> 💡 **Tip**: `uv sync`는 프로젝트 `.venv`를 `uv.lock`과 동기화합니다. RunPod 템플릿의 전역 PyTorch 버전보다 이 프로젝트의 lock 조합을 기준으로 확인하세요.
 
 #### 4. Hugging Face 인증
 ```bash
@@ -274,4 +274,3 @@ git clone https://github.com/YOUR_USERNAME/MiniR1.git
 git checkout -b feature/your-feature
 
 ```
-

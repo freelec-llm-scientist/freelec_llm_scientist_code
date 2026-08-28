@@ -26,7 +26,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def load_model_and_tokenizer(checkpoint_path: str, base_model: str = "Qwen/Qwen2.5-1.5B-Instruct"):
+def load_model_and_tokenizer(checkpoint_path: str, base_model: str = "Qwen/Qwen2.5-3B-Instruct"):
     """
     체크포인트에서 모델과 토크나이저 로드
     
@@ -40,15 +40,26 @@ def load_model_and_tokenizer(checkpoint_path: str, base_model: str = "Qwen/Qwen2
     logger.info(f"Loading tokenizer from {base_model}")
     tokenizer = AutoTokenizer.from_pretrained(base_model)
     
-    logger.info(f"Loading base model from {base_model}")
-    model = AutoModelForCausalLM.from_pretrained(
-        base_model,
-        torch_dtype=torch.bfloat16,
-        device_map="auto",
-    )
-    
-    logger.info(f"Loading LoRA weights from {checkpoint_path}")
-    model = PeftModel.from_pretrained(model, checkpoint_path)
+    is_lora_checkpoint = (Path(checkpoint_path) / "adapter_config.json").exists()
+
+    if is_lora_checkpoint:
+        logger.info(f"Loading base model from {base_model}")
+        model = AutoModelForCausalLM.from_pretrained(
+            base_model,
+            torch_dtype=torch.bfloat16,
+            device_map="auto",
+        )
+
+        logger.info(f"Loading LoRA weights from {checkpoint_path}")
+        model = PeftModel.from_pretrained(model, checkpoint_path)
+    else:
+        logger.info(f"Loading full fine-tuning checkpoint from {checkpoint_path}")
+        model = AutoModelForCausalLM.from_pretrained(
+            checkpoint_path,
+            torch_dtype=torch.bfloat16,
+            device_map="auto",
+        )
+
     model.eval()
     
     return model, tokenizer
@@ -61,7 +72,7 @@ def generate_sample(
     max_new_tokens: int = 512,
     temperature: float = 0.7,
     top_p: float = 0.9,
-) -> str:
+) -> Tuple[str, List[int]]:
     """
     단일 샘플 생성
     
@@ -74,7 +85,7 @@ def generate_sample(
         top_p: nucleus sampling p값
     
     Returns:
-        생성된 텍스트
+        생성된 텍스트와 토큰 ID
     """
     inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
     
@@ -89,15 +100,16 @@ def generate_sample(
         )
     
     # 프롬프트 부분 제거하고 생성된 부분만 반환
-    generated_text = tokenizer.decode(outputs[0][inputs['input_ids'].shape[1]:], skip_special_tokens=True)
-    return generated_text
+    generated_ids = outputs[0][inputs['input_ids'].shape[1]:]
+    generated_text = tokenizer.decode(generated_ids, skip_special_tokens=True)
+    return generated_text, generated_ids.tolist()
 
 
 def evaluate_checkpoint(
     checkpoint_path: str,
     test_data_path: str = ".cache/datasets/test_countdown_r1.json",
     num_samples: int = 100,
-    base_model: str = "Qwen/Qwen2.5-1.5B-Instruct",
+    base_model: str = "Qwen/Qwen2.5-3B-Instruct",
     output_file: str = None,
 ) -> dict:
     """
@@ -127,7 +139,9 @@ def evaluate_checkpoint(
     
     # 평가 실행
     results = []
+    prompts = []
     completions = []
+    completion_ids = []
     targets = []
     nums_list = []
     
@@ -137,9 +151,11 @@ def evaluate_checkpoint(
         nums = example['nums']
         
         # 생성
-        completion = generate_sample(model, tokenizer, prompt)
+        completion, token_ids = generate_sample(model, tokenizer, prompt)
         
+        prompts.append(prompt)
         completions.append(completion)
+        completion_ids.append(token_ids)
         targets.append(str(target))
         nums_list.append(nums)
         
@@ -152,13 +168,23 @@ def evaluate_checkpoint(
     
     # 보상 계산
     logger.info("Computing rewards...")
-    format_rewards = format_reward_func(completions, targets)
-    equation_rewards = equation_reward_func(completions, targets, nums_list)
+    format_rewards = format_reward_func(
+        prompts=prompts,
+        completions=completions,
+        completion_ids=completion_ids,
+    )
+    equation_rewards = equation_reward_func(
+        prompts=prompts,
+        completions=completions,
+        completion_ids=completion_ids,
+        target=targets,
+        nums=nums_list,
+    )
     combined_rewards = [f + e for f, e in zip(format_rewards, equation_rewards)]
     
     # 메트릭 계산
-    format_accuracy = sum(format_rewards) / len(format_rewards)
-    equation_accuracy = sum(equation_rewards) / len(equation_rewards)
+    format_accuracy = sum(r == 0.5 for r in format_rewards) / len(format_rewards)
+    equation_accuracy = sum(r == 2.0 for r in equation_rewards) / len(equation_rewards)
     success_rate = sum(1 for r in combined_rewards if r > 1.5) / len(combined_rewards)
     avg_reward = sum(combined_rewards) / len(combined_rewards)
     
@@ -240,7 +266,7 @@ def main():
     parser.add_argument(
         "--base_model",
         type=str,
-        default="Qwen/Qwen2.5-1.5B-Instruct",
+        default="Qwen/Qwen2.5-3B-Instruct",
         help="Base model name"
     )
     parser.add_argument(
