@@ -74,8 +74,6 @@ def safe_eval(expr: str) -> float:
     def eval_node(node):
         if isinstance(node, ast.Constant):
             return float(node.value)
-        elif isinstance(node, ast.Num):
-            return float(node.n)
         elif isinstance(node, ast.BinOp):
             op_type = type(node.op)
             if op_type not in allowed_operators:
@@ -186,8 +184,8 @@ def length_penalty_func(
     rewards = []
     safe_buffer = 100
     
-    for completion in completions:
-        length = len(completion)
+    for completion_token_ids in completion_ids:
+        length = len(completion_token_ids)
         
         if length < (max_completion_length - safe_buffer):
             rewards.append(0.0)

@@ -1,5 +1,5 @@
 # Training Configuration for Mini-R1 GRPO
-# Optimized for single GPU (12-16GB VRAM)
+# Default full fine-tuning configuration for a single A100 80GB GPU
 
 # Model Configuration
 model:
@@ -72,6 +72,9 @@ grpo:
   use_cache: False
   
   # GRPO hyperparameters
+  # 원본 Chapter 7(TRL 0.25)의 objective를 명시적으로 고정
+  loss_type: "dapo"
+  scale_rewards: "group"
   beta: 0.01
 
 # Dataset Configuration

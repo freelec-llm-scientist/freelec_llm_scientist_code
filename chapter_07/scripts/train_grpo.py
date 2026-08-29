@@ -152,7 +152,8 @@ class SampleSavingCallback(TrainerCallback):
             # prompts, completions, completion_ids를 모두 리스트로 전달
             prompts = [prompt]
             completions = [completion]
-            completion_ids = [inputs['input_ids'][0].tolist()]  # 실제 토큰 ID
+            prompt_length = inputs['input_ids'].shape[1]
+            completion_ids = [outputs[0, prompt_length:].tolist()]
             
             raw_format = format_reward_func(
                 prompts,
@@ -295,6 +296,8 @@ def main():
         num_generations=grpo_config['num_generations'],
         temperature=grpo_config.get('temperature', 0.9),  # === [추가] ===
         top_p=grpo_config.get('top_p', 0.95),  # === [추가] ===
+        loss_type=grpo_config['loss_type'],
+        scale_rewards=grpo_config['scale_rewards'],
         beta=grpo_config['beta'],
         logging_dir=training_config.get('logging_dir'),
         report_to=training_config.get('report_to', ['tensorboard']),
