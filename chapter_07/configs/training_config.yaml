@@ -27,9 +27,9 @@ training:
   warmup_ratio: 0.05
   
   # Steps and epochs
-  max_steps: 2000 
+  max_steps: 1200 
   logging_steps: 5
-  save_steps: 1000
+  save_steps: 600
   eval_steps: 50
   
   # Batch size configuration
